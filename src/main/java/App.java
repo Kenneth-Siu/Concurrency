@@ -2,6 +2,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class App {
     public static void main(String[] args) throws InterruptedException {
@@ -9,16 +10,14 @@ public class App {
         ExecutorService pool = Executors.newFixedThreadPool(4);
 
         for (int i = 0; i < 10_000; i++) {
-            Counter counterA = new Counter();
 
-            CompletableFuture<Void> increment1 = CompletableFuture.runAsync(counterA::increment, pool);
-            CompletableFuture<Void> increment2 = CompletableFuture.runAsync(counterA::increment, pool);
+            DeadLocker deadLocker = new DeadLocker();
+
+            CompletableFuture<Void> increment1 = CompletableFuture.runAsync(deadLocker::incrementOne, pool);
+            CompletableFuture<Void> increment2 = CompletableFuture.runAsync(deadLocker::incrementTwo, pool);
 
             CompletableFuture<Void> all = CompletableFuture.<Integer>allOf(increment1, increment2);
             all.thenApply((v) -> {
-                if (counterA.get() != 2) {
-                    System.out.println("Incorrect counter value: " + Integer.toString(counterA.get()));
-                }
 
                 return null;
             });
@@ -39,14 +38,14 @@ public class App {
     }
 
     public static class Counter {
-        private int val = 0;
+        private AtomicInteger val = new AtomicInteger(0);
 
         public void increment() {
-            val += 1;
+            val.incrementAndGet();
         }
 
         public int get() {
-            return val;
+            return val.get();
         }
     }
 }
